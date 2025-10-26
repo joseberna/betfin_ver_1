@@ -7,9 +7,9 @@ import ColoredText from '../typography/ColoredText';
 import ChipsAmount from '../user/ChipsAmount';
 import { Link } from 'react-router-dom';
 // import { Select } from '../forms/Select';
-import lobbyIcon from '../../assets/icons/lobby-icon.svg';
-import newsIcon from '../../assets/icons/news-icon.svg';
-import userIcon from '../../assets/icons/user-icon.svg';
+import lobbyIcon from '../../assets/icons/lobby-icon.svg?url';
+import newsIcon from '../../assets/icons/news-icon.svg?url';
+import userIcon from '../../assets/icons/user-icon.svg?url';
  
 import Markdown from 'react-remarkable';
 import socketContext from '../../context/websocket/socketContext';

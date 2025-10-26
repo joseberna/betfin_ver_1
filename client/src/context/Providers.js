@@ -8,21 +8,24 @@ import GlobalStyles from '../styles/Global'
 import { BrowserRouter } from 'react-router-dom'
 import WebSocketProvider from './websocket/WebsocketProvider'
 import GameState from './game/GameState'
+import WalletProvider from '../wallet';
 
 const Providers = ({ children }) => (
   <BrowserRouter>
     <ThemeProvider theme={theme}>
-      <GlobalState>
-        <ModalProvider>
+      <WalletProvider>
+        <GlobalState>
           <WebSocketProvider>
-            <GameState>
-              <Normalize />
-              <GlobalStyles />
-              {children}
-            </GameState>
+            <ModalProvider>
+              <GameState>
+                <Normalize />
+                <GlobalStyles />
+                {children}
+              </GameState>
+            </ModalProvider>
           </WebSocketProvider>
-        </ModalProvider>
-      </GlobalState>
+        </GlobalState>
+      </WalletProvider>
     </ThemeProvider>
   </BrowserRouter>
 )

@@ -14,4 +14,6 @@ module.exports = {
   JWT_TOKEN_EXPIRES_IN: process.env.JWT_TOKEN_EXPIRES_IN || '1h',
   JWT_SET_COOKIE: process.env.JWT_SET_COOKIE || 'false',
   CLIENT_ORIGIN: process.env.CLIENT_ORIGIN || 'http://localhost:3000',
+  APP_DOMAIN: process.env.APP_DOMAIN || 'localhost',
+  APP_ORIGIN: process.env.APP_ORIGIN || 'http://localhost:3000',
 }

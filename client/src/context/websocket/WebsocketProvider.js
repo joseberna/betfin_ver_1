@@ -1,97 +1,88 @@
-import React, { useState, useEffect, useContext } from 'react'
-import SocketContext from './socketContext'
-// import io from 'socket.io-client'
+import React, { useEffect, useMemo, useState } from 'react'
 import { io } from 'socket.io-client'
-import { useNavigate } from 'react-router-dom'
+import SocketContext from './socketContext'
 import {
   CS_DISCONNECT,
-  CS_FETCH_LOBBY_INFO,
   SC_PLAYERS_UPDATED,
   SC_RECEIVE_LOBBY_INFO,
   SC_TABLES_UPDATED,
 } from '../../pokergame/actions'
 import globalContext from '../global/globalContext'
-import config from '../../clientConfig'
 
-const WebSocketProvider = ({ children }) => {
-  const { setTables, setPlayers, setChipsAmount } = useContext(globalContext)
-  const navigate = useNavigate()
+const SOCKET_URL = (process.env.REACT_APP_SOCKET_URL || 'http://localhost:7777').replace(/\/$/, '')
 
-  const [socket, setSocket] = useState(null)
+export default function WebsocketProvider({ children }) {
+  const { setTables, setPlayers, setChipsAmount } = React.useContext(globalContext)
   const [socketId, setSocketId] = useState(null)
 
-  useEffect(() => {
-    window.addEventListener('beforeunload', cleanUp)
-    window.addEventListener('beforeclose', cleanUp)
-    return () => cleanUp()
-    // eslint-disable-next-line
-  }, [])
+  const socket = useMemo(() => {
+    const isProd = process.env.NODE_ENV === 'production'
+    const token = (isProd && localStorage.getItem('token')) || undefined
 
-  useEffect(() => {
-    console.log('WebsocketProveder.usseEfect: socket context')
-    const webSocket = socket || connect()
-    console.log('WebsocketProveder.usseEfect: socket conect: ', webSocket)
-
-    return () => cleanUp()
-    // eslint-disable-next-line
-  }, [])
-
-  function cleanUp() {
-    window.socket && window.socket.emit(CS_DISCONNECT)
-    window.socket && window.socket.close()
-    setSocket(null)
-    setSocketId(null)
-    setPlayers(null)
-    setTables(null)
-  }
-
-  // function connect() {
-  //   const socket = io(config.socketURI, {
-  //     transports: ['websocket'],
-  //     upgrade: false,
-  //   })
-  //   registerCallbacks(socket)
-  //   window.socket = socket
-  //   return socket
-  // }
-
-  function connect() {
-    const socket = io(config.socketURI.replace(/\/$/, ''), {
-      transports: ['websocket'],   // ok, fuerza WS
-      upgrade: false,              // ok
-      withCredentials: true,       // si algún día usas cookies
-      // path: '/socket.io'        // usa el default, no lo cambies salvo que lo cambies en el server
-    });
-    registerCallbacks(socket);
-    window.socket = socket;
-    return socket;
-  }
-
-
-  function registerCallbacks(socket) {
-    socket.on('connect', () => {
-      setSocket(socket)
+    return io(SOCKET_URL, {
+      path: '/socket.io',
+      transports: ['websocket'],
+      upgrade: false,
+      withCredentials: true,
+      ...(token ? { auth: { token } } : {}),  // en dev no manda token
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      timeout: 20000,
     })
+  }, [])
+
+  useEffect(() => {
+    console.log('[socket] conectando a', SOCKET_URL)
+
+    const onConnect = () => {
+      console.log('[socket] ✅ conectado', socket.id)
+      setSocketId(socket.id)
+    }
+    const onConnectError = (err) => {
+      console.error('[socket] ❌ connect_error:', err?.message || err)
+    }
+    const onDisconnect = (reason) => {
+      console.warn('[socket] ⚠️ desconectado:', reason)
+    }
+
+    socket.on('connect', onConnect)
+    socket.on('connect_error', onConnectError)
+    socket.on('disconnect', onDisconnect)
 
     socket.on(SC_RECEIVE_LOBBY_INFO, ({ tables, players, socketId, amount }) => {
-      console.log(SC_RECEIVE_LOBBY_INFO, tables, players, socketId)
       setSocketId(socketId)
       setChipsAmount(amount)
       setTables(tables)
       setPlayers(players)
     })
 
-    socket.on(SC_PLAYERS_UPDATED, (players) => {
-      console.log(SC_PLAYERS_UPDATED, players)
-      setPlayers(players)
-    })
+    socket.on(SC_PLAYERS_UPDATED, setPlayers)
+    socket.on(SC_TABLES_UPDATED, setTables)
 
-    socket.on(SC_TABLES_UPDATED, (tables) => {
-      console.log(SC_TABLES_UPDATED, tables)
-      setTables(tables)
-    })
+    const handleBeforeUnload = () => {
+      try { socket.emit(CS_DISCONNECT) } catch {}
+      try { socket.close() } catch {}
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
 
-  }
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      try { socket.emit(CS_DISCONNECT) } catch {}
+      try { socket.close() } catch {}
+      socket.off('connect', onConnect)
+      socket.off('connect_error', onConnectError)
+      socket.off('disconnect', onDisconnect)
+      socket.off(SC_RECEIVE_LOBBY_INFO)
+      socket.off(SC_PLAYERS_UPDATED)
+      socket.off(SC_TABLES_UPDATED)
+    }
+  }, [socket, setChipsAmount, setPlayers, setTables])
+
+  const cleanUp = React.useCallback(() => {
+    try { socket.emit(CS_DISCONNECT) } catch {}
+    try { socket.close() } catch {}
+  }, [socket])
 
   return (
     <SocketContext.Provider value={{ socket, socketId, cleanUp }}>
@@ -99,5 +90,3 @@ const WebSocketProvider = ({ children }) => {
     </SocketContext.Provider>
   )
 }
-
-export default WebSocketProvider

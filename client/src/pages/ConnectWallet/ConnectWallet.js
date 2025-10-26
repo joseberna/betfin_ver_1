@@ -1,46 +1,99 @@
-// client/src/pages/ConnectWallet/index.js (o ConnectWallet.js)
-import React, { useContext, useEffect } from 'react'
+import React, { useContext, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useAccount } from 'wagmi'
+import { ConnectButton } from '@rainbow-me/rainbowkit'
+
 import globalContext from '../../context/global/globalContext'
 import socketContext from '../../context/websocket/socketContext'
 import { CS_FETCH_LOBBY_INFO } from '../../pokergame/actions'
-import LoadingScreen from '../../components/loading/LoadingScreen'
+const API_URL = (process.env.REACT_APP_API_URL || 'http://localhost:7777').replace(/\/$/, '')
 
-const ConnectWallet = () => {
-  const { setWalletAddress, setChipsAmount } = useContext(globalContext)
+
+export default function ConnectWallet() {
+  const { isConnected, address } = useAccount()
+  const { setWalletAddress } = useContext(globalContext)
   const { socket } = useContext(socketContext)
+
   const navigate = useNavigate()
-  const query = new URLSearchParams(useLocation().search)
+  const location = useLocation()
+  const didNavigate = useRef(false)
+
+  const params = useMemo(() => {
+    const q = new URLSearchParams(location.search)
+    return {
+      gameId: q.get('gameId') || '1',
+      username: q.get('username') || (address ? `guest_${address.slice(2, 6)}` : 'guest'),
+    }
+  }, [location.search, address])
+
+  async function ensureToken(addr) {
+    let token = localStorage.getItem('token')
+    if (!token) {
+      // adapta a tu endpoint real
+      const res = await fetch(`${API_URL}/auth/guest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: addr }),
+      })
+      if (!res.ok) throw new Error('No pude obtener token')
+      const data = await res.json()
+      token = data.token
+      localStorage.setItem('token', token)
+    }
+    // si ya hay socket creado, actualiza el auth y reconecta
+    if (socket && !socket.connected) {
+      socket.auth = { token }
+      socket.connect()
+    }
+  }
 
   useEffect(() => {
-    if (!socket || !socket.connected) return
+    if (!isConnected || !address || !socket) return;
+    ensureToken(address).catch(console.error)
+    const go = () => {
+      setWalletAddress(address);
 
-    // 1) leer query
-    let walletAddress = query.get('walletAddress')
-    let gameId = query.get('gameId')
-    let username = query.get('username')
+      socket.emit(CS_FETCH_LOBBY_INFO, {
+        walletAddress: address,
+        socketId: socket.id,
+        gameId: params.gameId,
+        username: params.username,
+      });
 
-    // 2) fallbacks de desarrollo
-    if (!walletAddress) walletAddress = '0x' + Math.random().toString(16).slice(2, 8).padEnd(40, '0')
-    if (!gameId) gameId = 1
-    if (!username) username = 'guest_' + Math.floor(Math.random() * 1000)
+      if (!didNavigate.current) {
+        didNavigate.current = true;
+        navigate('/play', { replace: true });
+      }
+    };
 
-    setWalletAddress(walletAddress)
+    // si ya está conectado, navega; si no, espera al evento
+    if (socket.connected) {
+      go();
+    } else {
+      socket.once('connect', go);
+    }
 
-    // 3) emitir lobby
-    socket.emit(CS_FETCH_LOBBY_INFO, {
-      walletAddress,
-      socketId: socket.id,
-      gameId,
-      username,
-    })
-    console.log('ConnectWallet.usseEffect emit:', CS_FETCH_LOBBY_INFO, { walletAddress, socketId: socket.id, gameId, username })
+    // por si hay error de conexión, mira qué pasa
+    const onErr = (err) => console.log('socket connect_error:', err?.message || err);
+    socket.on('connect_error', onErr);
 
-    // 4) navegar a la mesa
-    navigate('/play')
-  }, [socket?.connected]) // importante: dispara cuando realmente conecta
+    return () => {
+      socket.off('connect', go);
+      socket.off('connect_error', onErr);
+    };
+  }, [isConnected, address, socket, params.gameId, params.username, navigate, setWalletAddress]);
 
-  return <LoadingScreen />
+  return (
+    <div style={{ display: 'grid', placeItems: 'center', minHeight: '60vh' }}>
+      <ConnectButton showBalance={false} />
+      {isConnected && !didNavigate.current && (
+        <button style={{ marginTop: 16 }} onClick={() => {
+          didNavigate.current = true
+          navigate('/play', { replace: true })
+        }}>
+          Continuar
+        </button>
+      )}
+    </div>
+  )
 }
-
-export default ConnectWallet

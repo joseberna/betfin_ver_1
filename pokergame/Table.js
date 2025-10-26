@@ -4,6 +4,7 @@ const Hand = require('pokersolver').Hand;
 const Seat = require('./Seat');
 const Deck = require('./Deck');
 const SidePot = require('./SidePot');
+const {safeParse} = require("../utils/string.utils");
 
 class Table {
   constructor(id, name, limit, maxPlayers = 5) {
@@ -256,7 +257,8 @@ class Table {
     });
   }
   cleanSeatsForHistory() {
-    const cleanSeats = JSON.parse(JSON.stringify(this.seats));
+    // const cleanSeats = JSON.parse(JSON.stringify(this.seats));
+    const cleanSeats = safeParse(JSON.stringify(this.seats));
     for (let i = 0; i < this.maxPlayers; i++) {
       const seat = cleanSeats[i];
       if (seat) {
