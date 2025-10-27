@@ -19,9 +19,11 @@ const config = require('./config'); // Asegúrate que exporta { PORT, NODE_ENV, 
 // 3) Middlewares y rutas de tu proyecto
 const configureMiddleware = require('./middleware');
 const configureRoutes = require('./routes');
+const siweRoutes = require('./routes/siwe');
 
 // 4) Socket.IO v4
 const { Server: IOServer } = require('socket.io');
+const socketAuth = require('./socket/auth');
 const gameSocket = require('./socket');
 
 // 5) (Opcional) DB
@@ -56,6 +58,7 @@ app.get('/ready', (_req, res) => {
     // aquí podrías validar conexión DB/colas/etc.
     res.status(200).json({ ready: true });
 });
+app.use('/api/siwe', siweRoutes);
 
 // Rutas de la app (versionadas dentro, p.ej. /api/v1)
 configureRoutes(app);
@@ -79,6 +82,8 @@ const io = new IOServer(httpServer, {
     },
     // transports: ['websocket'], // Si quieres forzar solo WS y evitar polling
 });
+
+socketAuth(io); 
 
 io.on('connection', (socket) => {
     // Centraliza toda la lógica de rooms/juego en /socket/index.js
