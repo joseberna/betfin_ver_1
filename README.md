@@ -1,4 +1,5 @@
 # 🃏 Bet Poker Web3 Integration – Full Refactor & Enhancements
+![Bet Poker Web3 Cover](./client/public/demo/pokerweb3.png)
 
 **Author:** Jose Fernando Berna  
 **Date:** October 27, 2025
@@ -14,9 +15,7 @@ Originally, the project was not blockchain-enabled and had multiple architectura
 
 ## 🎮 Gameplay Demo
 
-<video src="./client/public/demo/demo-pokerweb3.mp4" controls width="720">
-  Your browser does not support the video tag.
-</video>
+<a href="https://youtu.be/-CfFKXAewbo" target="_blank"> <img src="https://img.youtube.com/vi/-CfFKXAewbo/hqdefault.jpg" alt="Bet Poker Web3 Demo" width="720"/> </a>
 
 
 ## 🧩 Key Changes & Implementations
