@@ -12,6 +12,7 @@ const GlobalState = ({ children }) => {
   const [tables, setTables] = useState(null)
   const [players, setPlayers] = useState(null)
   const [walletAddress, setWalletAddress] = useState('')
+   const [selectedTableId, setSelectedTableId] = useState(null)
 
   // --- Hook de RainbowKit / Wagmi ---
   const { address, isConnected } = useAccount()
@@ -43,7 +44,9 @@ const GlobalState = ({ children }) => {
         players,
         setPlayers,
         walletAddress,
-        setWalletAddress, // aún disponible si deseas asignarla manualmente
+        setWalletAddress, 
+        selectedTableId,
+        setSelectedTableId,
       }}
     >
       {children}

@@ -1,7 +1,9 @@
+// client/src/pages/Play.js
 import React, { useContext, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Container from '../components/layout/Container'
 import Button from '../components/buttons/Button'
+import globalContext from '../context/global/globalContext'
 import gameContext from '../context/game/gameContext'
 import socketContext from '../context/websocket/socketContext'
 import PokerTable from '../components/game/PokerTable'
@@ -16,12 +18,15 @@ import BrandingImage from '../components/game/BrandingImage'
 import PokerCard from '../components/game/PokerCard'
 import background from '../assets/img/background.png'
 import { useAccount } from 'wagmi'
+import { CS_FETCH_LOBBY_INFO, SC_RECEIVE_LOBBY_INFO } from '../pokergame/actions'
 import './Play.scss'
 
 const Play = () => {
   const [winnerMessage, setWinnerMessage] = useState(null)
   const navigate = useNavigate()
   const { socket } = useContext(socketContext)
+  const { selectedTableId, setSelectedTableId } = useContext(globalContext)
+
   const {
     messages,
     currentTable,
@@ -35,33 +40,60 @@ const Play = () => {
     call,
     raise,
   } = useContext(gameContext)
-  const { isConnected, address } = useAccount()
 
+  const { isConnected, address } = useAccount()
   const [bet, setBet] = useState(0)
   const joinedRef = useRef(false)
 
-  // --- Guard: sin wallet, vuelve al inicio ---
   useEffect(() => {
-    if (!isConnected || !address) navigate('/', { replace: true })
-  }, [isConnected, address, navigate])
+    if (!socket || !isConnected) return
+    socket.emit(CS_FETCH_LOBBY_INFO, {
+      walletAddress: address,
+      username: address ? `player_${address.slice(2, 6)}` : undefined,
+    })
+  }, [socket, isConnected, address])
 
-  // --- Join controlado al cargar ---
+  // 1) Si no hay wallet → home
   useEffect(() => {
-    if (!socket || !address || joinedRef.current) return
+    if (!isConnected) navigate('/', { replace: true })
+  }, [isConnected, navigate])
+
+  // 2) Si no hay mesa seleccionada → lobby
+  useEffect(() => {
+    if (selectedTableId == null) navigate('/lobby', { replace: true })
+  }, [selectedTableId, navigate])
+
+  // 3) Unirse solo con selectedTableId (sin location.state)
+  useEffect(() => {
+    if (!socket || joinedRef.current || selectedTableId == null) return
+
     const doJoin = () => {
       if (joinedRef.current) return
-      joinTable(1)
+      joinTable(selectedTableId)
       joinedRef.current = true
     }
-    if (socket.connected) doJoin()
-    else socket.once('connect', doJoin)
+
+    const onceLobby = () => { doJoin() }
+    socket.once(SC_RECEIVE_LOBBY_INFO, onceLobby)
+
+    if (socket.connected) {
+      setTimeout(() => !joinedRef.current && doJoin(), 300)
+    } else {
+      socket.once('connect', () => {
+        socket.emit(CS_FETCH_LOBBY_INFO, {
+          walletAddress: address,
+          username: address ? `player_${address.slice(2, 6)}` : undefined,
+        })
+      })
+    }
 
     return () => {
-      socket.off?.('connect', doJoin)
+      socket.off(SC_RECEIVE_LOBBY_INFO, onceLobby)
+      socket.off('connect')
     }
-  }, [socket, address, joinTable])
+  }, [socket, joinTable, selectedTableId, address])
 
-  // --- Ajuste automático de apuesta según estado ---
+  // 4) Apuesta por defecto según estado
   useEffect(() => {
     if (!currentTable) return
     const { callAmount, minBet, pot, minRaise } = currentTable
@@ -70,22 +102,22 @@ const Play = () => {
     else setBet(minBet)
   }, [currentTable])
 
-  // --- Mostrar mensaje del ganador (4 s) ---
+  // 5) Mostrar ganador (4s)
   useEffect(() => {
     if (currentTable?.winMessages?.length > 0) {
-      const lastWin = currentTable.winMessages[currentTable.winMessages.length - 1]
+      const lastWin = currentTable.winMessages.at(-1)
       setWinnerMessage(lastWin)
-      const timeout = setTimeout(() => setWinnerMessage(null), 4000)
-      return () => clearTimeout(timeout)
+      const t = setTimeout(() => setWinnerMessage(null), 4000)
+      return () => clearTimeout(t)
     }
   }, [currentTable?.winMessages])
 
-  // --- Handler salir de mesa ---
+  // 6) Salir → abandonar mesa y volver al lobby
   const handleLeave = () => {
     joinedRef.current = false
     leaveTable()
-    socket.disconnect() // Desconecta completamente
-    navigate('/', { replace: true }) // Regresa al home
+    setSelectedTableId(null)
+    navigate('/lobby', { replace: true })
   }
 
   return (
@@ -104,15 +136,8 @@ const Play = () => {
         className="play-area"
       >
         {currentTable && (
-          <PositionedUISlot
-            top="2vh"
-            left="1.5rem"
-            scale="0.65"
-            style={{ zIndex: '50' }}
-          >
-            <Button small secondary onClick={handleLeave}>
-              Leave
-            </Button>
+          <PositionedUISlot top="2vh" left="1.5rem" scale="0.65" style={{ zIndex: 50 }}>
+            <Button small secondary onClick={handleLeave}>Leave</Button>
           </PositionedUISlot>
         )}
 
@@ -121,68 +146,41 @@ const Play = () => {
 
           {currentTable && (
             <>
-              {/* --- SEATS --- */}
-              <PositionedUISlot top="-5%" left="0" scale="0.55" origin="top left">
-                <Seat seatNumber={1} currentTable={currentTable} sitDown={sitDown} />
-              </PositionedUISlot>
-              <PositionedUISlot top="-5%" right="2%" scale="0.55" origin="top right">
-                <Seat seatNumber={2} currentTable={currentTable} sitDown={sitDown} />
-              </PositionedUISlot>
-              <PositionedUISlot bottom="15%" right="2%" scale="0.55" origin="bottom right">
-                <Seat seatNumber={3} currentTable={currentTable} sitDown={sitDown} />
-              </PositionedUISlot>
-              <PositionedUISlot bottom="8%" scale="0.55" origin="bottom center">
-                <Seat seatNumber={4} currentTable={currentTable} sitDown={sitDown} />
-              </PositionedUISlot>
-              <PositionedUISlot bottom="15%" left="0" scale="0.55" origin="bottom left">
-                <Seat seatNumber={5} currentTable={currentTable} sitDown={sitDown} />
-              </PositionedUISlot>
+              {[1, 2, 3, 4, 5].map((n, i) => {
+                const pos = [
+                  { top: '-5%', left: '0', origin: 'top left' },
+                  { top: '-5%', right: '2%', origin: 'top right' },
+                  { bottom: '15%', right: '2%', origin: 'bottom right' },
+                  { bottom: '8%', origin: 'bottom center' },
+                  { bottom: '15%', left: '0', origin: 'bottom left' },
+                ][i]
+                return (
+                  <PositionedUISlot key={n} scale="0.55" {...pos}>
+                    <Seat seatNumber={n} currentTable={currentTable} sitDown={sitDown} />
+                  </PositionedUISlot>
+                )
+              })}
 
-              {/* --- LOGO --- */}
-              <PositionedUISlot
-                top="-25%"
-                scale="0.55"
-                origin="top center"
-                style={{ zIndex: 1 }}
-              >
+              <PositionedUISlot top="-25%" scale="0.55" origin="top center" style={{ zIndex: 1 }}>
                 <BrandingImage />
               </PositionedUISlot>
 
-              {/* --- BOARD --- */}
               <PositionedUISlot
                 width="100%"
                 origin="center center"
-                scale="0.60"
-                style={{
-                  display: 'flex',
-                  textAlign: 'center',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
+                scale="0.6"
+                style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}
               >
-                {Array.isArray(currentTable.board) &&
-                  currentTable.board.length > 0 &&
-                  currentTable.board.map((card, i) => (
-                    <PokerCard key={i} card={card} />
-                  ))}
+                {currentTable.board?.map((card, i) => <PokerCard key={i} card={card} />)}
               </PositionedUISlot>
 
-              {/* --- MENSAJES Y GANADOR --- */}
-              <PositionedUISlot
-                top="-5%"
-                scale="0.60"
-                origin="bottom center"
-                style={{ minHeight: '60px' }}
-              >
-                {winnerMessage ? (
-                  <InfoPill>{winnerMessage}</InfoPill>
-                ) : messages?.length > 0 ? (
-                  <InfoPill>{messages[messages.length - 1]}</InfoPill>
-                ) : null}
+              <PositionedUISlot top="-5%" scale="0.6" origin="bottom center" style={{ minHeight: 60 }}>
+                {winnerMessage
+                  ? <InfoPill>{winnerMessage}</InfoPill>
+                  : (messages?.length ? <InfoPill>{messages.at(-1)}</InfoPill> : null)}
               </PositionedUISlot>
 
-              {/* --- ESTADO DE LA MANO --- */}
-              <PositionedUISlot top="12%" scale="0.60" origin="center center">
+              <PositionedUISlot top="12%" scale="0.6" origin="center center">
                 {(currentTable.winMessages?.length ?? 0) === 0 && (
                   <GameStateInfo currentTable={currentTable} />
                 )}
@@ -191,19 +189,20 @@ const Play = () => {
           )}
         </PokerTableWrapper>
 
-        {/* --- CONTROLES DE JUGADOR --- */}
         {currentTable?.seats?.[seatId]?.turn && (
-          <GameUI
-            currentTable={currentTable}
-            seatId={seatId}
-            bet={bet}
-            setBet={setBet}
-            raise={raise}
-            standUp={standUp}
-            fold={fold}
-            check={check}
-            call={call}
-          />
+          <div className="controls-dock">
+            <GameUI
+              currentTable={currentTable}
+              seatId={seatId}
+              bet={bet}
+              setBet={setBet}
+              raise={raise}
+              standUp={standUp}
+              fold={fold}
+              check={check}
+              call={call}
+            />
+          </div>
         )}
       </Container>
     </>

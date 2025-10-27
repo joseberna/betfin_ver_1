@@ -106,12 +106,19 @@ const GameState = ({ children }) => {
   // API al resto de la app
   const joinTable = (tableId) => socket?.emit(CS_JOIN_TABLE, tableId)
 
+  // const leaveTable = () => {
+  //   const id = tableRef.current?.id
+  //   console.log('[CLIENT] leaveTable called; tableId=', id);
+  //   if (id && socket) socket.emit(CS_LEAVE_TABLE, id)
+  //   navigate('/', { replace: true })           // <-- te saca de /play
+  // }
+
   const leaveTable = () => {
-    const id = tableRef.current?.id
-    console.log('[CLIENT] leaveTable called; tableId=', id);
-    if (id && socket) socket.emit(CS_LEAVE_TABLE, id)
-    navigate('/', { replace: true })           // <-- te saca de /play
+    const tableId = tableRef.current?.id
+    if (tableId && socket) socket.emit(CS_LEAVE_TABLE, tableId)
+    navigate('/lobby', { replace: true })
   }
+
 
   const fold = () => { const id = tableRef.current?.id; if (id) socket.emit(CS_FOLD, id) }
   const check = () => { const id = tableRef.current?.id; if (id) socket.emit(CS_CHECK, id) }

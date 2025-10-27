@@ -148,8 +148,16 @@ module.exports.init = (socket, io) => {
   // --- JOIN TABLE ---
   socket.on(CS_JOIN_TABLE, (tableId) => {
     const table = tables[tableId]
-    const player = players[socket.id]
-    if (!table || !player) return
+    if (!table) return
+    if (!table) return
+    let player = players[socket.id]
+    if (!player) {
+      // Rehidrata/crea un jugador “guest” si llega un JOIN sin haber hecho FETCH_LOBBY
+      const addr = socket.user?.address || `guest_${socket.id.slice(0, 4)}`
+      const name = `player_${addr.slice(2, 6)}`
+      player = new Player(socket.id, addr, name, config.INITIAL_CHIPS_AMOUNT)
+      players[socket.id] = player
+    }
 
     table.addPlayer(player)
     const seatId = firstEmptySeat(table)
@@ -245,4 +253,12 @@ module.exports.init = (socket, io) => {
   socket.on(CS_CHECK, (id) => handleAction(id, 'handleCheck'))
   socket.on(CS_CALL, (id) => handleAction(id, 'handleCall'))
   socket.on(CS_RAISE, ({ tableId, amount }) => handleAction(tableId, 'handleRaise', amount))
+  socket.on(CS_DISCONNECT, () => {
+    try {
+      Object.values(tables).forEach((t) => t.removePlayer(socket.id))
+      delete players[socket.id]
+    } catch (e) {
+      console.warn('[CS_DISCONNECT] cleanup error', e)
+    }
+  })
 }

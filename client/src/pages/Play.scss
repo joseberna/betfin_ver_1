@@ -1,16 +1,56 @@
-.play-area:before{
+.play-area:before {
     content: '';
     background-color: black;
     position: absolute;
-    left: calc(0px - (100vw - 100%) / 2);   
+    left: calc(0px - (100vw - 100%) / 2);
     height: 100%;
     width: calc((100vw - 100%) / 2);
 }
-.play-area:after{
+
+.play-area:after {
     content: '';
     background-color: black;
     position: absolute;
-    right: calc(0px - (100vw - 100%) / 2);   
+    right: calc(0px - (100vw - 100%) / 2);
     height: 100%;
     width: calc((100vw - 100%) / 2);
+}
+
+/* Centra el dock de controles siempre, por encima de la mesa */
+.play-area .controls-dock {
+    position: fixed;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    z-index: 80;
+
+    /* ancho responsivo y alineación */
+    width: clamp(320px, 72vw, 900px);
+    display: flex;
+    justify-content: center;
+
+    /* evita que cubra clicks fuera de los botones */
+    pointer-events: none;
+}
+
+.play-area .controls-dock>* {
+    pointer-events: auto;
+    /* los hijos SÍ reciben clicks */
+}
+
+/* Por si algún estilo previo empuja el body */
+html,
+body,
+#root {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+}
+
+/* Si ves que en algún breakpoint queda muy abajo, puedes ajustar: */
+@media (max-width: 768px) {
+    .play-area .controls-dock {
+        bottom: 10px;
+        width: 94vw;
+    }
 }
