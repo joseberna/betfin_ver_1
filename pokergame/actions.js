@@ -1,23 +1,10 @@
-exports.CS_FOLD = 'CS_FOLD';
-exports.CS_CHECK = 'CS_CHECK';
-exports.CS_CALL = 'CS_CALL';
-exports.CS_RAISE = 'CS_RAISE';
-exports.WINNER = 'WINNER';
+// === Lobby ===
 exports.CS_FETCH_LOBBY_INFO = 'CS_FETCH_LOBBY_INFO';
 exports.SC_RECEIVE_LOBBY_INFO = 'SC_RECEIVE_LOBBY_INFO';
-exports.SC_PLAYERS_UPDATED = 'SC_PLAYERS_UPDATED';
-exports.CS_JOIN_TABLE = 'CS_JOIN_TABLE';
-exports.SC_TABLE_JOINED = 'SC_TABLE_JOINED';
-exports.CS_LEAVE_TABLE = 'CS_LEAVE_TABLE';
-exports.SC_TABLE_LEFT = 'SC_TABLE_LEFT';
 exports.SC_TABLES_UPDATED = 'SC_TABLES_UPDATED';
-exports.SC_TABLE_UPDATED = 'SC_TABLE_UPDATED';
-exports.TABLE_MESSAGE = 'TABLE_MESSAGE';         // no emit event
-exports.CS_REBUY = 'CS_REBUY';
-exports.CS_SIT_DOWN = 'CS_SIT_DOWN';
-exports.CS_STAND_UP = 'CS_STAND_UP';
-exports.SITTING_OUT = 'SITTING_OUT';         // no emit event
-exports.SITTING_IN = 'SITTING_IN';         // no emit event
+exports.SC_PLAYERS_UPDATED = 'SC_PLAYERS_UPDATED';
+
+// === Conexión global ===
 exports.CS_DISCONNECT = 'CS_DISCONNECT';
 exports.CS_LOBBY_CONNECT = "CS_LOBBY_CONNECT";
 exports.CS_LOBBY_DISCONNECT = "CS_LOBBY_DISCONNECT";
@@ -25,3 +12,32 @@ exports.SC_LOBBY_CONNECTED = "SC_LOBBY_CONNECTED";
 exports.SC_LOBBY_DISCONNECTED = "SC_LOBBY_DISCONNECTED";
 exports.CS_LOBBY_CHAT = "CS_LOBBY_CHAT";
 exports.SC_LOBBY_CHAT = "SC_LOBBY_CHAT";
+
+// === Poker ===
+exports.CS_FOLD = 'CS_FOLD';
+exports.CS_CHECK = 'CS_CHECK';
+exports.CS_CALL = 'CS_CALL';
+exports.CS_RAISE = 'CS_RAISE';
+exports.WINNER = 'WINNER';
+exports.CS_JOIN_TABLE = 'CS_JOIN_TABLE';
+exports.CS_LEAVE_TABLE = 'CS_LEAVE_TABLE';
+exports.SC_TABLE_JOINED = 'SC_TABLE_JOINED';
+exports.SC_TABLE_LEFT = 'SC_TABLE_LEFT';
+exports.SC_TABLE_UPDATED = 'SC_TABLE_UPDATED';
+exports.CS_REBUY = 'CS_REBUY';
+exports.CS_SIT_DOWN = 'CS_SIT_DOWN';
+exports.CS_STAND_UP = 'CS_STAND_UP';
+exports.SITTING_OUT = 'SITTING_OUT';
+exports.SITTING_IN = 'SITTING_IN';
+exports.TABLE_MESSAGE = 'TABLE_MESSAGE';
+
+// === Blackjack ===
+exports.CS_BJ_JOIN_TABLE = 'CS_BJ_JOIN_TABLE';
+exports.CS_BJ_LEAVE_TABLE = 'CS_BJ_LEAVE_TABLE';
+exports.CS_BJ_PLACE_BET = 'CS_BJ_PLACE_BET';
+exports.CS_BJ_HIT = 'CS_BJ_HIT';
+exports.CS_BJ_STAND = 'CS_BJ_STAND';
+exports.CS_BJ_DOUBLE = 'CS_BJ_DOUBLE';
+exports.CS_BJ_SPLIT = 'CS_BJ_SPLIT';
+exports.SC_BJ_TABLE_UPDATED = 'SC_BJ_TABLE_UPDATED';
+exports.SC_BJ_RESULT = 'SC_BJ_RESULT';

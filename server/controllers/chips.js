@@ -1,4 +1,4 @@
-const { INITIAL_CHIPS_AMOUNT } = require('../config');
+const { INITIAL_CHIPS_AMOUNT } = require('../config/config');
 const User = require('../models/User');
 
 // @route   GET api/chips/free

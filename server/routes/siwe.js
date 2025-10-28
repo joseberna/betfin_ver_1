@@ -3,7 +3,7 @@
 const express = require('express');
 const { SiweMessage } = require('siwe');
 const jwt = require('jsonwebtoken');
-const config = require('../config');
+const config = require('../config/config');
 
 const router = express.Router();
 

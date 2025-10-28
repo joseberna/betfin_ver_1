@@ -4,7 +4,7 @@
 const bcrypt = require('bcryptjs');
 const { validationResult } = require('express-validator');
 const jwt = require('jsonwebtoken');
-const config = require('../config');
+const config = require('../config/config');
 const User = require('../models/User');
 
 // Utilidad: respuesta de error uniforme

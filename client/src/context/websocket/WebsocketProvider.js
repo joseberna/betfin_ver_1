@@ -1,92 +1,78 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { io } from 'socket.io-client'
-import SocketContext from './socketContext'
-import {
-  CS_DISCONNECT,
-  SC_PLAYERS_UPDATED,
-  SC_RECEIVE_LOBBY_INFO,
-  SC_TABLES_UPDATED,
-} from '../../pokergame/actions'
-import globalContext from '../global/globalContext'
+// client/src/context/websocket/WebsocketProvider.js
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { io } from 'socket.io-client';
+import SocketContext from './socketContext';
+import { CS_DISCONNECT } from '../../pokergame/actions';
 
-const SOCKET_URL = (process.env.REACT_APP_SOCKET_URL || 'http://localhost:7777').replace(/\/$/, '')
+const BASE = (process.env.REACT_APP_SOCKET_URL || 'http://localhost:7777').replace(/\/$/, '');
+
+function connectNS(ns, token) {
+  const opts = {
+    path: '/socket.io',
+    withCredentials: true,
+    reconnection: true,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000,
+    timeout: 20000,
+    ...(token ? { auth: { token } } : {}),
+  };
+  return io(`${BASE}${ns}`, opts);
+}
 
 export default function WebsocketProvider({ children }) {
-  const { setTables, setPlayers, setChipsAmount } = React.useContext(globalContext)
-  const [socketId, setSocketId] = useState(null)
+  // (opcional) token sólo en prod
+  const token = useMemo(
+    () => (process.env.NODE_ENV === 'production' ? localStorage.getItem('token') || undefined : undefined),
+    []
+  );
 
-  const socket = useMemo(() => {
-    const isProd = process.env.NODE_ENV === 'production'
-    const token = (isProd && localStorage.getItem('token')) || undefined
+  // sockets por namespace
+  const lobby = useMemo(() => connectNS('/lobby', token), [token]);
+  const poker = useMemo(() => connectNS('/poker', token), [token]);
+  const blackjack = useMemo(() => connectNS('/blackjack', token), [token]);
 
-    return io(SOCKET_URL, {
-      path: '/socket.io',
-      transports: ['websocket'],
-      upgrade: false,
-      withCredentials: true,
-      ...(token ? { auth: { token } } : {}),  // en dev no manda token
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
-      timeout: 20000,
-    })
-  }, [])
+  const [socketId, setSocketId] = useState(null);
 
   useEffect(() => {
-    console.log('[socket] conectando a', SOCKET_URL)
+    const onConnect = () => setSocketId(lobby.id);
+    const onConnectError = (err) => console.error('[socket][lobby] connect_error:', err?.message || err);
+    const onDisconnect = (reason) => console.warn('[socket][lobby] disconnect:', reason);
 
-    const onConnect = () => {
-      console.log('[socket] ✅ conectado', socket.id)
-      setSocketId(socket.id)
-    }
-    const onConnectError = (err) => {
-      console.error('[socket] ❌ connect_error:', err?.message || err)
-    }
-    const onDisconnect = (reason) => {
-      console.warn('[socket] ⚠️ desconectado:', reason)
-    }
-
-    socket.on('connect', onConnect)
-    socket.on('connect_error', onConnectError)
-    socket.on('disconnect', onDisconnect)
-
-    socket.on(SC_RECEIVE_LOBBY_INFO, ({ tables, players, socketId, amount }) => {
-      setSocketId(socketId)
-      setChipsAmount(amount)
-      setTables(tables)
-      setPlayers(players)
-    })
-
-    socket.on(SC_PLAYERS_UPDATED, setPlayers)
-    socket.on(SC_TABLES_UPDATED, setTables)
+    lobby.on('connect', onConnect);
+    lobby.on('connect_error', onConnectError);
+    lobby.on('disconnect', onDisconnect);
 
     const handleBeforeUnload = () => {
-      try { socket.emit(CS_DISCONNECT) } catch {}
-      try { socket.close() } catch {}
-    }
-    window.addEventListener('beforeunload', handleBeforeUnload)
+      try { lobby.emit(CS_DISCONNECT); } catch {}
+      try { lobby.close(); } catch {}
+      try { poker.close(); } catch {}
+      try { blackjack.close(); } catch {}
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-      try { socket.emit(CS_DISCONNECT) } catch {}
-      try { socket.close() } catch {}
-      socket.off('connect', onConnect)
-      socket.off('connect_error', onConnectError)
-      socket.off('disconnect', onDisconnect)
-      socket.off(SC_RECEIVE_LOBBY_INFO)
-      socket.off(SC_PLAYERS_UPDATED)
-      socket.off(SC_TABLES_UPDATED)
-    }
-  }, [socket, setChipsAmount, setPlayers, setTables])
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      try { lobby.emit(CS_DISCONNECT); } catch {}
+      try { lobby.close(); } catch {}
+      try { poker.close(); } catch {}
+      try { blackjack.close(); } catch {}
 
-  const cleanUp = React.useCallback(() => {
-    try { socket.emit(CS_DISCONNECT) } catch {}
-    try { socket.close() } catch {}
-  }, [socket])
+      lobby.off('connect', onConnect);
+      lobby.off('connect_error', onConnectError);
+      lobby.off('disconnect', onDisconnect);
+    };
+  }, [lobby, poker, blackjack]);
+
+  const cleanUp = useCallback(() => {
+    try { lobby.emit(CS_DISCONNECT); } catch {}
+    try { lobby.close(); } catch {}
+    try { poker.close(); } catch {}
+    try { blackjack.close(); } catch {}
+  }, [lobby, poker, blackjack]);
 
   return (
-    <SocketContext.Provider value={{ socket, socketId, cleanUp }}>
+    <SocketContext.Provider value={{ lobby, poker, blackjack, socketId, cleanUp }}>
       {children}
     </SocketContext.Provider>
-  )
+  );
 }

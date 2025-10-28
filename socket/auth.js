@@ -1,29 +1,29 @@
-
+// server/socket/auth.js
 'use strict';
+
 const jwt = require('jsonwebtoken');
-const config = require('../config');
+const config = require('../server/config/config');
 
-module.exports = (io) => {
-  io.use((socket, next) => {
-    // En desarrollo, acepta todo
-    if (config.NODE_ENV === 'development' || config.NODE_ENV === 'dev') {
-      console.log('[socketAuth] modo desarrollo, omitiendo validación de token');
-      return next();
-    }
+async function verify(socket) {
+  // Permitir invitados en desarrollo
+  if ((config.NODE_ENV || process.env.NODE_ENV) !== 'production') {
+    console.log('[socketAuth] dev mode — skipping token validation');
+    return true;
+  }
 
-    const token = socket.handshake.auth?.token;
-    if (!token) {
-      console.warn('[socketAuth] missing token');
-      return next(new Error('missing token'));
-    }
+  const token = socket.handshake?.auth?.token;
+  if (!token) {
+    throw new Error('missing token');
+  }
 
-    try {
-      const decoded = jwt.verify(token, config.JWT_SECRET);
-      socket.user = decoded;
-      return next();
-    } catch (err) {
-      console.error('[socketAuth] invalid token', err.message);
-      return next(new Error('invalid token'));
-    }
-  });
-};
+  try {
+    const decoded = jwt.verify(token, config.JWT_SECRET);
+    socket.user = decoded; // opcional: adjunta info al socket
+    return true;
+  } catch (err) {
+    console.error('[socketAuth] invalid token:', err.message);
+    throw new Error('invalid token');
+  }
+}
+
+module.exports = { verify };

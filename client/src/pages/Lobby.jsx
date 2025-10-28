@@ -1,12 +1,18 @@
-import React, { useContext, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAccount, useDisconnect } from 'wagmi'
-import socketContext from '../context/websocket/socketContext'
-import globalContext from '../context/global/globalContext'
-import gameContext from '../context/game/gameContext'
-import { CS_FETCH_LOBBY_INFO } from '../pokergame/actions'
-import DisconnectButton from '../components/buttons/DisconnectButton'
+// client/src/pages/Lobby.jsx
+import React, { useContext, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAccount } from 'wagmi';
 
+import socketContext from '../context/websocket/socketContext';
+import globalContext from '../context/global/globalContext';
+import {
+  CS_FETCH_LOBBY_INFO,
+  SC_RECEIVE_LOBBY_INFO,
+  SC_TABLES_UPDATED,
+  SC_PLAYERS_UPDATED,
+} from '../pokergame/actions';
+
+import DisconnectButton from '../components/buttons/DisconnectButton';
 
 function Stat({ label, value }) {
   return (
@@ -14,12 +20,13 @@ function Stat({ label, value }) {
       <div style={{ opacity: 0.65, fontSize: 12 }}>{label}</div>
       <div style={{ fontWeight: 600 }}>{value}</div>
     </div>
-  )
+  );
 }
 
-function TableCard({ table, onJoin }) {
-  const sb = table.smallBlind ?? table.limit / 40
-  const bb = table.bigBlind ?? (table.limit / 40) * 2
+function TableCard({ table, onJoin, game }) {
+  const sb = game === 'poker' ? (table.smallBlind ?? table.limit / 40) : null;
+  const bb = game === 'poker' ? (table.bigBlind ?? (table.limit / 40) * 2) : null;
+
   return (
     <div
       style={{
@@ -35,11 +42,17 @@ function TableCard({ table, onJoin }) {
       <div>
         <div style={{ fontSize: 16, fontWeight: 700 }}>{table.name}</div>
         <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
-          <Stat label="Players" value={`${table.currentNumberPlayers}/${table.maxPlayers}`} />
-          <Stat label="Blinds" value={`${sb} / ${bb}`} />
-          <Stat label="Buy-in" value={table.limit} />
+          <Stat
+            label="Players"
+            value={`${table.currentNumberPlayers ?? table.players ?? 0}/${table.maxPlayers ?? table.capacity ?? 0}`}
+          />
+          {game === 'poker' && typeof sb === 'number' && typeof bb === 'number' && (
+            <Stat label="Blinds" value={`${sb} / ${bb}`} />
+          )}
+          {table.limit != null && <Stat label="Buy-in" value={table.limit} />}
         </div>
       </div>
+
       <div style={{ alignSelf: 'center' }}>
         <button
           onClick={() => onJoin(table.id)}
@@ -53,61 +66,71 @@ function TableCard({ table, onJoin }) {
             cursor: 'pointer',
             transition: '0.2s all ease-in-out',
           }}
-          onMouseOver={(e) => (e.target.style.background = '#1fb387')}
-          onMouseOut={(e) => (e.target.style.background = '#20c997')}
+          onMouseOver={e => (e.currentTarget.style.background = '#1fb387')}
+          onMouseOut={e => (e.currentTarget.style.background = '#20c997')}
         >
           Join
         </button>
       </div>
     </div>
-  )
+  );
 }
 
 export default function Lobby() {
-  const navigate = useNavigate()
-  const { isConnected, address } = useAccount()
-  const { disconnect } = useDisconnect()
-  const { socket } = useContext(socketContext)
-  const { tables, players, setSelectedTableId, setTables, setPlayers } = useContext(globalContext)
-  const { joinTable } = useContext(gameContext)
-  const [loading, setLoading] = useState(true)
+  const navigate = useNavigate();
+  const { isConnected, address } = useAccount();
+  const { lobby } = useContext(socketContext); // namespace /lobby
 
-  // Pedir info de lobby al montar
+  const {
+    selectedGame,
+    setSelectedGame,
+    tablesByGame,
+    setTablesForGame,
+    playersOnline,
+    setPlayersOnline,
+    setSelectedTableId,
+  } = useContext(globalContext);
+
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    if (!socket) return
-    setLoading(true)
-    socket.emit(CS_FETCH_LOBBY_INFO, {
+    if (!lobby || !isConnected) return;
+
+    setLoading(true);
+
+    lobby.emit(CS_FETCH_LOBBY_INFO, {
+      game: selectedGame, // 'poker' | 'blackjack'
       walletAddress: address,
       username: address ? `player_${address.slice(2, 6)}` : undefined,
-    })
-  }, [socket, address])
+    });
 
-  useEffect(() => {
-    if (Array.isArray(tables)) setLoading(false)
-  }, [tables])
+    const onLobby = (data) => {
+      if (Array.isArray(data?.tables)) setTablesForGame(selectedGame, data.tables);
+      if (Array.isArray(data?.players)) setPlayersOnline(data.players);
+      setLoading(false);
+    };
+
+    lobby.on(SC_RECEIVE_LOBBY_INFO, onLobby);
+    lobby.on(SC_TABLES_UPDATED, onLobby);
+    lobby.on(SC_PLAYERS_UPDATED, setPlayersOnline);
+
+    return () => {
+      lobby.off(SC_RECEIVE_LOBBY_INFO, onLobby);
+      lobby.off(SC_TABLES_UPDATED, onLobby);
+      lobby.off(SC_PLAYERS_UPDATED, setPlayersOnline);
+    };
+  }, [lobby, isConnected, address, selectedGame, setTablesForGame, setPlayersOnline]);
+
+  const tables = tablesByGame[selectedGame] || [];
+  const sortedTables = useMemo(
+    () => (Array.isArray(tables) ? [...tables].sort((a, b) => (a.id ?? 0) - (b.id ?? 0)) : []),
+    [tables]
+  );
 
   const handleJoin = (tableId) => {
-    console.log('[lobby] joining table', tableId)
-    setSelectedTableId(tableId)
-    navigate('/play', { replace: true })
-  }
-
-  const handleDisconnect = async () => {
-    try {
-      disconnect()
-      setSelectedTableId(null)
-      setTables([])
-      setPlayers([])
-      navigate('/', { replace: true })
-    } catch (err) {
-      console.error('Error disconnecting wallet:', err)
-    }
-  }
-
-  const sortedTables = useMemo(() => {
-    if (!Array.isArray(tables)) return []
-    return [...tables].sort((a, b) => a.id - b.id)
-  }, [tables])
+    setSelectedTableId(tableId);
+    navigate(selectedGame === 'blackjack' ? '/play/blackjack' : '/play/poker', { replace: true });
+  };
 
   return (
     <div
@@ -135,14 +158,47 @@ export default function Lobby() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-          <Stat label="Players online" value={Array.isArray(players) ? players.length : 0} />
+          <Stat label="Players online" value={Array.isArray(playersOnline) ? playersOnline.length : 0} />
           {isConnected && <DisconnectButton />}
         </div>
       </header>
 
+      {/* Selector de juego */}
+      <div
+        style={{
+          maxWidth: 960,
+          margin: '0 auto',
+          padding: '16px 24px 0',
+          display: 'flex',
+          gap: 8,
+        }}
+      >
+        {['poker', 'blackjack'].map((g) => {
+          const active = selectedGame === g;
+          return (
+            <button
+              key={g}
+              onClick={() => setSelectedGame(g)}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 10,
+                border: `1px solid ${active ? '#20c997' : 'rgba(255,255,255,.15)'}`,
+                background: active ? '#0f3c36' : 'transparent',
+                color: '#e9fef9',
+                cursor: 'pointer',
+              }}
+            >
+              {g === 'poker' ? 'Poker' : 'Blackjack'}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Contenido principal */}
       <main style={{ maxWidth: 960, margin: '0 auto', padding: '24px' }}>
-        <h2 style={{ margin: '8px 0 16px 0' }}>Available tables</h2>
+        <h2 style={{ margin: '8px 0 16px 0' }}>
+          {selectedGame === 'blackjack' ? 'Blackjack tables' : 'Poker tables'}
+        </h2>
 
         {loading && <div style={{ opacity: 0.7, fontSize: 14 }}>Loading lobby…</div>}
 
@@ -152,10 +208,10 @@ export default function Lobby() {
 
         <div style={{ display: 'grid', gap: 14 }}>
           {sortedTables.map((t) => (
-            <TableCard key={t.id} table={t} onJoin={handleJoin} />
+            <TableCard key={t.id} table={t} onJoin={handleJoin} game={selectedGame} />
           ))}
         </div>
       </main>
     </div>
-  )
+  );
 }
